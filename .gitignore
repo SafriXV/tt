@@ -1,4 +1,5 @@
 result
+result-*
 dist/
 android/.gradle/
 android/app/build/
