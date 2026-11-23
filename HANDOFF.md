@@ -34,6 +34,12 @@ _Last saved: 2026-11-23. Git repo is initialized, committed, and pushed to
    - JS FFI return types (`MisoString` from `foreign import javascript`)
 2. **`web` site derivation in `flake.nix` is a best guess.** It assumes
    `${webApp}/bin/timetrack.jsexe/all.js`; verify against a real build.
+   **Known immediate bug:** `flake.nix:38` uses
+   `lib.relativeTo ./. path != "cabal.project"` inside `cleanSourceWith`, but
+   `lib.relativeTo` does not exist in the pinned nixpkgs — this is what makes
+   the Pages workflow fail at evaluation time. Fix: drop the `cleanSourceWith`
+   filter and pass `./.` to `callCabal2nix`; the existing
+   `postPatch = "rm -f cabal.project\n"` already handles the project file.
 3. **Android Java module is unverified.** `NativeLocalStorageModule` uses the
    researched Lynx API (`LynxModule`, `@LynxMethod`, `Callback`,
    `LynxEnv.inst().registerModule`), but has not been compiled/loaded on a
@@ -95,6 +101,9 @@ Web build uses `Miso.Storage.getLocalStorage/setLocalStorage`.
 
 ```bash
 cd /Users/safri/Projects/tt
+# 0. First remove the broken lib.relativeTo filter in flake.nix:36-39 and
+#    callCabal2nix "timetrack" ./.  (see note above) — otherwise every
+#    nix build / Pages workflow fails at evaluation time.
 nix build .#bundle --accept-flake-config -L     # fix Haskell compile errors
 nix build .#web --accept-flake-config -L        # fix web site path if needed
 ./scripts/build-apk.sh                          # produces dist/timetrack.apk
