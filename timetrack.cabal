@@ -1,0 +1,39 @@
+cabal-version:      2.2
+name:               timetrack
+version:            0.1.0.0
+synopsis:           Frictionless offline time tracking, in Haskell + miso
+license:            BSD-3-Clause
+build-type:         Simple
+extra-source-files: styles.css, web/index.html
+
+flag native
+  description: Build the Lynx/Android backend instead of the browser backend
+  default:     False
+  manual:      True
+
+common options
+  if flag(native)
+    if arch(javascript)
+      ld-options:
+        -sENVIRONMENT=shell -sWASM=0 -sEXPORTED_RUNTIME_METHODS=HEAP8
+
+  if !arch(wasm32) && !arch(javascript)
+    ghc-options:
+      -O0
+
+executable timetrack
+  import:           options
+  main-is:          Main.hs
+  hs-source-dirs:   src
+  other-modules:
+      TimeTrack.Model
+      TimeTrack.Store
+      TimeTrack.View
+  if flag(native)
+    cpp-options: -DNATIVE
+  build-depends:
+      base
+    , miso
+    , containers
+  default-language: Haskell2010
+  ghc-options:      -Wall -Wno-name-shadowing

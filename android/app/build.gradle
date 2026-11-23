@@ -1,0 +1,60 @@
+apply plugin: 'com.android.application'
+
+android {
+    namespace 'com.safri.timetrack'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.safri.timetrack"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            // Local-only signing key for a personal, sideloaded app.
+            storeFile file("../../keystore/timetrack.jks")
+            storePassword "timetrack"
+            keyAlias "timetrack"
+            keyPassword "timetrack"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    // Lynx runtime. Versions match the Lynx 4.0.0 toolchain used by miso's
+    // native backend and the reference miso Android hosts.
+    implementation "org.lynxsdk.lynx:lynx:4.0.0"
+    implementation "org.lynxsdk.lynx:lynx-jssdk:4.0.0"
+    implementation "org.lynxsdk.lynx:lynx-trace:4.0.0"
+    implementation "org.lynxsdk.lynx:primjs:4.0.0"
+
+    // XElements give us the native <input> used for task descriptions.
+    implementation "org.lynxsdk.lynx:xelement:4.0.0"
+
+    // Image / log / http services required by the Lynx environment.
+    implementation "org.lynxsdk.lynx:lynx-service-image:4.0.0"
+    implementation "org.lynxsdk.lynx:lynx-service-log:4.0.0"
+    implementation "org.lynxsdk.lynx:lynx-service-http:4.0.0"
+    implementation "com.facebook.fresco:fresco:2.3.0"
+    implementation "com.facebook.fresco:animated-gif:2.3.0"
+    implementation "com.facebook.fresco:animated-webp:2.3.0"
+    implementation "com.facebook.fresco:webpsupport:2.3.0"
+    implementation "com.facebook.fresco:animated-base:2.3.0"
+    implementation "com.squareup.okhttp3:okhttp:4.9.0"
+}
