@@ -4,6 +4,7 @@ result-*
 dist/
 android/.gradle/
 android/app/build/
+android/build/
 android/local.properties
 android/app/src/main/assets/main.lynx.bundle
 *.class

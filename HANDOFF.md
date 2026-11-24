@@ -1,9 +1,8 @@
 # TimeTrack — handoff / resume notes
 
 _Last saved: 2026-11-24. Git repo is on `main`, pushed to
-`git@github.com:SafriXV/tt.git`. GitHub Pages is enabled with
-`build_type=workflow`; `.github/workflows/pages.yml` deploys `result/` from
-`nix build .#web`._
+`git@github.com:SafriXV/tt.git` at commit `a984531` (plus a final `.gitignore`
+tidy-up). Everything below is built, signed, deployed and verified._
 
 ## Goal
 
@@ -26,7 +25,7 @@ browser uses `localStorage`.
 - `scripts/build-apk.sh` — bundle + Gradle `assembleRelease` → `dist/timetrack.apk`.
 - `.github/workflows/pages.yml` — Pages build/deploy workflow.
 
-## Fixes made since the last pushed commit
+## Fixes included in commit `a984531`
 
 1. `flake.nix`: removed the broken `lib.relativeTo` source filter that broke
    every Nix evaluation. Now uses a simple `cleanSourceWith` filter that drops
@@ -57,15 +56,22 @@ browser uses `localStorage`.
     `jsbi.patch`, so no patch is applied twice. This fixed the `wasm-ld: section
     too large` link failure (which also affected Miso's own native sample).
 
-## Current state
+## Current state — DONE
 
-- `nix build .#bundle --accept-flake-config -L` **succeeds**. All four Haskell
+- `nix build .#bundle --accept-flake-config -L` succeeds. All four Haskell
   modules compile; `result/main.lynx.bundle` (9.5 MB) is produced.
 - The Darwin `ranlib` padding patch is applied to the *plain* cross GHC, then
   Miso's native overlay adds `jsbi.patch` exactly once on top.
 - GHC 9.14.1 and rspeedy were built from source locally (Cachix has no Darwin
-  substitutes), so only ~18 GiB of Nix store space remained afterward.
-- No `dist/timetrack.apk` yet. Web build and Pages deployment are pending.
+  substitutes); ~18 GiB of Nix store space remained afterward.
+- `./scripts/build-apk.sh` succeeds: `dist/timetrack.apk` (51 MB) contains
+  `assets/main.lynx.bundle` and is signed with the local `timetrack.jks` key.
+  Verified with Android build-tools `apksigner verify --verbose --print-certs`:
+  **v2 scheme: true**, 1 signer, `CN=TimeTrack`. `jarsigner` reports "jar is not
+  signed" only because this APK is v2-only (no v1/META-INF), which is expected.
+- GitHub Pages deployment succeeded: run `45345795925`, deployment SHA
+  `a984531859e761af7b7c90a182f1ec7a9a78c2cd`. Site verified live at
+  https://safrixv.github.io/tt/ — `index.html`, `styles.css`, `all.js` all 200.
 
 ## Known environment constraints
 
@@ -83,20 +89,20 @@ browser uses `localStorage`.
   `getStorageItem(key, callback)`; the Java module is registered globally in
   `TimeTrackApplication.onCreate()`.
 
-## Resume checklist
+## Rebuild / verify commands
 
 ```bash
 cd /Users/safri/Projects/tt
-# 1. Commit and push the fixes:
-git add -A && git commit -m "Fix Miso APIs, Nix eval, Darwin GHC link, and Android host" && git push
-# 2. Produce the APK (bundle is already built; Gradle needs Maven access):
+# Native Android bundle + signed APK (Gradle needs Maven access):
 ./scripts/build-apk.sh
-# 3. Deploy Pages (CI builds .#web with Cachix substitutes) and verify:
+# APK signature check (build-tools path from nix store):
+/nix/store/8pfv3x85ddb3zhw9w0yh79skksmsm18v-android-sdk-build-tools-34.0.0/libexec/android-sdk/build-tools/34.0.0/apksigner verify --verbose --print-certs dist/timetrack.apk
+# Redeploy Pages (CI builds .#web with Cachix substitutes):
 gh workflow run pages.yml
 curl -I https://safrixv.github.io/tt/
-# 4. Optional local web verification (heavy: GHCJS builds from source on Darwin):
+# Optional local web verification (heavy: GHCJS builds from source on Darwin):
 nix build .#web --accept-flake-config -L
 ls -lh result/index.html result/styles.css result/all.js
 ```
 
-Hosted URL (once the workflow succeeds): https://safrixv.github.io/tt/
+Hosted URL: https://safrixv.github.io/tt/
