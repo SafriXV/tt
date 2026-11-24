@@ -1,6 +1,4 @@
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE JavaScriptFFI #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -11,7 +9,8 @@ module TimeTrack.Store
   , saveRaw
   ) where
 
-import Miso.String (MisoString, pack)
+import qualified Miso.Date as D
+import Miso.String (MisoString, ms)
 #ifdef NATIVE
 import Miso.JSON (Value (..))
 import Miso.Native.Module (callNativeModule, callNativeModuleWith)
@@ -20,19 +19,8 @@ import Miso.Storage (getLocalStorage, setLocalStorage)
 #endif
 
 --------------------------------------------------------------------------------
--- Wall clock. GHCJS exposes the JS Date global in both the browser and Lynx.
+-- Wall clock. Miso.Date wraps the JS Date global in both the browser and Lynx.
 --------------------------------------------------------------------------------
-
-foreign import javascript unsafe "new Date().getHours()"
-  jsHours :: IO Int
-
-foreign import javascript unsafe "new Date().getMinutes()"
-  jsMinutes :: IO Int
-
-foreign import javascript unsafe
-  "(function(n){var d=new Date();d.setDate(d.getDate()+n);\
-  \return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');})($1)"
-  jsDateOffset :: Int -> IO MisoString
 
 pad2 :: Int -> String
 pad2 n | n < 10 = '0' : show n
@@ -40,15 +28,20 @@ pad2 n | n < 10 = '0' : show n
 
 nowTime :: IO MisoString
 nowTime = do
-  h <- jsHours
-  m <- jsMinutes
-  pure (fromString' (pad2 h ++ ":" ++ pad2 m))
-
-fromString' :: String -> MisoString
-fromString' = pack
+  d <- D.new
+  h <- D.getHours d
+  m <- D.getMinutes d
+  pure (ms (pad2 h ++ ":" ++ pad2 m))
 
 dateForOffset :: Int -> IO MisoString
-dateForOffset = jsDateOffset
+dateForOffset n = do
+  d <- D.new
+  day <- D.getDate d
+  _ <- D.setDate (day + n) d
+  y <- D.getFullYear d
+  mo <- D.getMonth d
+  da <- D.getDate d
+  pure (ms (show y ++ "-" ++ pad2 (mo + 1) ++ "-" ++ pad2 da))
 
 --------------------------------------------------------------------------------
 -- Persistence

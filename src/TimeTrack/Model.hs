@@ -27,7 +27,7 @@ import Data.Ord (comparing)
 import GHC.Generics (Generic)
 import Miso (Effect, bts, get, io, io_, modify, web, withSink)
 import Miso.JSON (FromJSON, ToJSON, decode, encode)
-import Miso.String (MisoString, ms)
+import Miso.String (MisoString, fromMisoString, ms)
 import TimeTrack.Store (dateForOffset, loadRaw, nowTime, saveRaw)
 
 --------------------------------------------------------------------------------
@@ -60,7 +60,7 @@ activities = [minBound .. maxBound]
 activityEmoji :: Activity -> MisoString
 activityEmoji = \case
   Eat -> "🍽️"
-  Dishes -> "🍽️"
+  Dishes -> "🧼"
   Cleaning -> "🧹"
   Call -> "📞"
   Socialize -> "🗣️"
@@ -292,7 +292,7 @@ normaliseTime s
   | valid = s
   | otherwise = "00:00"
   where
-    raw = ms s
+    raw = fromMisoString s :: String
     valid = case break (== ':') raw of
       (h, ':':m') -> length h <= 2 && length m' == 2
                      && all (`elem` ("0123456789" :: String)) (h ++ m')

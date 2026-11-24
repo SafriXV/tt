@@ -75,7 +75,15 @@
 }
 
 .tab-last {
+  flex: 1;
+  padding: 10px 0px;
   margin-right: 0px;
+  border-radius: 10px;
+  background-color: #e7eaf0;
+  color: #52607a;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
 }
 
 .tab-active-last {

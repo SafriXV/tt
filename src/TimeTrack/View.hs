@@ -13,6 +13,7 @@ import Miso.Native (scrollView_, text_, view_)
 import Miso.Native.Element.View.Event (onTap)
 import Miso.Native.X.Element (input_)
 import Miso.Native.X.Element.Input.Event (inputValue, onInput)
+import Miso.Property (textProp)
 import qualified Miso.Html.Property as P
 #else
 import qualified Miso.Html.Element as H
@@ -39,10 +40,11 @@ label cls s = text_ [P.className cls] [text s]
 tap :: Action -> Attribute Model Action
 tap = onTap
 
-textInput :: MisoString -> MisoString -> (MisoString -> Action) -> V
-textInput cls ph setter =
+textInput :: MisoString -> MisoString -> MisoString -> (MisoString -> Action) -> V
+textInput cls ph val setter =
   input_ [ P.className cls
-         , P.textProp "placeholder" ph
+         , textProp "placeholder" ph
+         , textProp "value" val
          , onInput (setter . inputValue)
          ]
 #else
@@ -58,12 +60,13 @@ label cls s = H.span_ [P.class_ cls] [text s]
 tap :: Action -> Attribute Model Action
 tap = E.onClick
 
-textInput :: MisoString -> MisoString -> (MisoString -> Action) -> V
-textInput cls ph setter =
+textInput :: MisoString -> MisoString -> MisoString -> (MisoString -> Action) -> V
+textInput cls ph val setter =
   H.input_
     [ P.class_ cls
     , P.type_ "text"
     , P.placeholder_ ph
+    , P.value_ val
     , E.onInput setter
     ]
 #endif
@@ -160,10 +163,10 @@ sheet :: Model -> V
 sheet m =
   case modelSheet m of
     NoSheet -> node "sheet-hidden" [] []
-    NoteSheet i note ->
+    NoteSheet _ note ->
       node "sheet" []
         [ label "sheet-title" "Add a note"
-        , textInput "input" "What exactly did you do?" (SetNote)
+        , textInput "input" "What exactly did you do?" note SetNote
         , node "sheet-buttons" []
             [ node "button" [tap CloseSheet] [label "button-text" "Skip"]
             , node "button-primary" [tap SaveNote] [label "button-text" "Save"]
@@ -172,8 +175,8 @@ sheet m =
     EditSheet _ note t ->
       node "sheet" []
         [ label "sheet-title" "Edit entry"
-        , textInput "input-time" "HH:MM" SetEditTime
-        , textInput "input" "Description" SetEditNote
+        , textInput "input-time" "HH:MM" t SetEditTime
+        , textInput "input" "Description" note SetEditNote
         , node "sheet-buttons" []
             [ node "button" [tap CloseSheet] [label "button-text" "Cancel"]
             , node "button-primary" [tap SaveEdit] [label "button-text" "Save"]

@@ -1,115 +1,102 @@
 # TimeTrack — handoff / resume notes
 
-_Last saved: 2026-11-23. Git repo is initialized, committed, and pushed to
-`git@github.com:SafriXV/tt.git` (`main`). GitHub Pages is enabled with
-`build_type=workflow`; a Pages deploy workflow is present at
-`.github/workflows/pages.yml` and was triggered by the last push._
+_Last saved: 2026-11-24. Git repo is on `main`, pushed to
+`git@github.com:SafriXV/tt.git`. GitHub Pages is enabled with
+`build_type=workflow`; `.github/workflows/pages.yml` deploys `result/` from
+`nix build .#web`._
 
-## What exists now
+## Goal
 
-- `src/Main.hs`, `src/TimeTrack/{Model,Store,View}.hs` — the whole app in
-  Haskell. One codebase, CPP-selected backend:
-  - native: `-DNATIVE` (cabal flag `-fnative`), Lynx elements + `native`
-  - web: normal `miso` + `startApp`
+A dead-simple, fully offline time tracker: one Haskell/Miso codebase, a native
+Android APK, and a web build on GitHub Pages. Tapping one of 16 emoji tiles logs
+the activity with the current time; notes can be added/edited/deleted; the day's
+logs are viewable. Android uses Lynx + a Java `SharedPreferences` bridge; the
+browser uses `localStorage`.
+
+## What exists
+
+- `src/Main.hs`, `src/TimeTrack/{Model,Store,View}.hs` — all app logic in Haskell.
+  CPP selects the backend: `-DNATIVE` → Miso native/Lynx; default → browser.
 - `timetrack.cabal`, `cabal.project`, `flake.nix`, `flake.lock` — Nix builds:
   - `nix build .#bundle --accept-flake-config -L` → `result/main.lynx.bundle`
   - `nix build .#web --accept-flake-config -L` → static site in `result/`
-- `styles.css`, `web/index.html` — shared styling + browser loader page.
-- `android/` — minimal Lynx host app, Java storage module
-  (`NativeLocalStorageModule`), signing config and local keystore in
-  `keystore/timetrack.jks` (password `timetrack`).
-- `scripts/build-apk.sh` — one-shot bundle + `gradle assembleRelease` + copy
-  to `dist/timetrack.apk`.
-- `.github/workflows/pages.yml` — builds `.#web` with Nix and deploys to Pages.
+- `styles.css`, `web/index.html` — shared styling + browser loader.
+- `android/` — minimal Lynx host, `NativeLocalStorageModule` Java bridge,
+  signing config; keystore at `keystore/timetrack.jks` (password `timetrack`).
+- `scripts/build-apk.sh` — bundle + Gradle `assembleRelease` → `dist/timetrack.apk`.
+- `.github/workflows/pages.yml` — Pages build/deploy workflow.
 
-## Where I got stuck / what is NOT verified
+## Fixes made since the last pushed commit
 
-1. **The Haskell code has never been compiled.** An early `nix build .#bundle`
-   was still downloading/building the GHCJS toolchain when it was interrupted;
-   later attempts failed only because files were untracked by Git (now fixed).
-   Expect compile errors, especially around:
-   - `Miso.Native.X.Element.input_` / `P.textProp "placeholder"` imports
-   - `View` type arity / `Attribute` exports
-   - `Miso.JSON.decode` use in `Model.hs` (`Boot`)
-   - JS FFI return types (`MisoString` from `foreign import javascript`)
-2. **`web` site derivation in `flake.nix` is a best guess.** It assumes
-   `${webApp}/bin/timetrack.jsexe/all.js`; verify against a real build.
-   **Known immediate bug:** `flake.nix:38` uses
-   `lib.relativeTo ./. path != "cabal.project"` inside `cleanSourceWith`, but
-   `lib.relativeTo` does not exist in the pinned nixpkgs — this is what makes
-   the Pages workflow fail at evaluation time. Fix: drop the `cleanSourceWith`
-   filter and pass `./.` to `callCabal2nix`; the existing
-   `postPatch = "rm -f cabal.project\n"` already handles the project file.
-3. **Android Java module is unverified.** `NativeLocalStorageModule` uses the
-   researched Lynx API (`LynxModule`, `@LynxMethod`, `Callback`,
-   `LynxEnv.inst().registerModule`), but has not been compiled/loaded on a
-   device.
-4. **No APK has been built yet.** Research verified Gradle 8.14.4 + JDK 17 +
-   AGP 8.5.2 + SDK 34 works on this Mac (scratch build produced a 22 MB APK),
-   with Lynx artifacts from Maven Central. Our own app still needs the bundle
-   embedded and `assembleRelease` run.
-5. The Pages workflow may currently be failing because of (1)/(2). Re-run it
-   after the web build succeeds locally.
+1. `flake.nix`: removed the broken `lib.relativeTo` source filter that broke
+   every Nix evaluation. Now uses a simple `cleanSourceWith` filter that drops
+   `.git`, `.build`, `dist`, `result`, `build`, `.gradle` and `*.log`, plus a
+   `postPatch` that removes `cabal.project` from both app derivations.
+2. `src/Main.hs`: moved CPP-gated imports above the `app` definition (imports
+   after declarations are a Haskell parse error).
+3. `src/TimeTrack/Store.hs`: replaced ad-hoc JS FFI with `Miso.Date`
+   (`new`, `getHours`, `getMinutes`, `getDate`, `setDate`, `getFullYear`,
+   `getMonth`); native calls now use `Miso.Native.Module` with
+   `Miso.JSON.Value.String`; web uses `Miso.Storage`.
+4. `src/TimeTrack/View.hs`: `textProp` comes from `Miso.Property`, not
+   `Miso.Html.Property`.
+5. `src/TimeTrack/Model.hs`: Dishes emoji changed to `🧼`.
+6. `styles.css`: `.tab-last` now carries the full `.tab` styling (Lynx resolves
+   one class token per node).
+7. `.gitignore`: added `.build/`.
+8. Android host: removed `ThreadStrategyForRendering.ALL_ON_UI` so Lynx keeps
+   the BTS/MTS split Miso native requires; Lynx deps bumped to 4.0.3 and the
+   full XElement set from Miso's reference host added.
+9. Verified against pinned Miso `56c9b2c…`: `nativeEvents`/`nativeXEvents` are
+   re-exported by `Miso.Native`; `onInput` receives `InputEvent` with
+   `inputValue`; `callNativeModuleWith` decodes a `FromJSON` result via a
+   `Either MisoString result` callback; `Miso.Date.setDate :: Int -> Date -> IO Double`.
+10. `patches/ghc-9.12-js-ar-darwin-ranlib-padding.patch`: upstream patch that
+    trims Apple `ranlib`'s `\n` padding from wasm archive members. Applied to the
+    plain cross GHC in `flake.nix` *before* Miso's native overlay adds
+    `jsbi.patch`, so no patch is applied twice. This fixed the `wasm-ld: section
+    too large` link failure (which also affected Miso's own native sample).
 
-## Exact research results (already verified, don't re-research)
+## Current state
 
-### Miso native API (pinned commit `56c9b2c…`)
+- `nix build .#bundle --accept-flake-config -L` **succeeds**. All four Haskell
+  modules compile; `result/main.lynx.bundle` (9.5 MB) is produced.
+- The Darwin `ranlib` padding patch is applied to the *plain* cross GHC, then
+  Miso's native overlay adds `jsbi.patch` exactly once on top.
+- GHC 9.14.1 and rspeedy were built from source locally (Cachix has no Darwin
+  substitutes), so only ~18 GiB of Nix store space remained afterward.
+- No `dist/timetrack.apk` yet. Web build and Pages deployment are pending.
 
-```haskell
-main = native (nativeEvents <> nativeXEvents) (static (mountStatic app))
--- mountStatic from Miso.Native (NOT mountStatic_)
--- component :: model -> (action -> Effect ctx props model action)
---           -> (model -> View ctx props model action) -> Component ...
--- i.e. view takes ONE argument, model
--- IE.onInput :: (InputEvent -> action) -> Attribute model action
--- InputEvent { inputValue :: MisoString, ... }
--- X.input_ :: [Attribute model action] -> View context props model action
--- className from Miso.Html.Property; single token per node in native CSS
-```
+## Known environment constraints
 
-`MountConstraints` under `NATIVE` requires ToJSON/FromJSON for model, props and
-action (we derive these). `Miso.Native.Module.callNativeModule*` is BTS-only.
-
-### Persistence
-
-Java side (implemented in `android/.../NativeLocalStorageModule.java`) exposes:
-
-```ts
-NativeLocalStorageModule.setStorageItem(key, value)
-NativeLocalStorageModule.getStorageItem(key, callback) // callback.invoke(value)
-```
-
-Haskell side in `Store.hs` uses `callNativeModule`/`callNativeModuleWith`.
-Web build uses `Miso.Storage.getLocalStorage/setLocalStorage`.
-
-### Build constraints
-
-- `mkLynxBundle { name, jsDrv, exeName, styles, assets? }`, reads
-  `${jsDrv}/bin/${exeName}.jsexe/all.js`, output `main.lynx.bundle`.
-- Native package set: `miso.lib.${system}.ghcNative`;
-  `callCabal2nixWithOptions ... "-fnative" { miso = ghcNative.miso-native; }`.
-- Web: `pkgs.pkgsCross.ghcjs.haskell.packages.ghc9141` with the miso overlay.
-- Use `--accept-flake-config` to enable `haskell-miso-cachix` (cachix CLI is not
-  installed; local nix.conf has no cachix substituter).
-- Android: JDK **17** (local Java 26 is too new for Gradle 8), Gradle 8.7+,
-  AGP 8.5.2, compileSdk 34, build-tools 34.0.0; set `ANDROID_HOME`,
-  `ANDROID_SDK_ROOT`, `JAVA_HOME` and
-  `GRADLE_OPTS=-Dorg.gradle.project.android.aapt2FromMavenOverride=.../aapt2`.
-  Pure `nix build` of the APK is not realistic (Maven network access).
+- Never run two heavy Nix builds in parallel — that previously filled the disk
+  while unpacking `ghc-9.14.1-source`. Build `.#bundle`, then `.#web`,
+  sequentially. Scratch dir `/private/tmp/tt-research` was removed.
+- Use `--accept-flake-config` (the flake declares the Miso Cachix substituter).
+  Local `nix show-config` only has `cache.nixos.org`; Cachix probes 404 on this
+  Mac, hence the source build.
+- Android: JDK 17, Gradle 8.14.4, AGP 8.5.2, compileSdk 34, build-tools 34.0.0.
+  Local Java 26 is too new for Gradle 8; `nix develop .#android` supplies JDK 17.
+  Pure Nix APK builds are not realistic because Gradle resolves Maven artifacts.
+- Native persistence contract:
+  `NativeLocalStorageModule.setStorageItem(key, value)` and
+  `getStorageItem(key, callback)`; the Java module is registered globally in
+  `TimeTrackApplication.onCreate()`.
 
 ## Resume checklist
 
 ```bash
 cd /Users/safri/Projects/tt
-# 0. First remove the broken lib.relativeTo filter in flake.nix:36-39 and
-#    callCabal2nix "timetrack" ./.  (see note above) — otherwise every
-#    nix build / Pages workflow fails at evaluation time.
-nix build .#bundle --accept-flake-config -L     # fix Haskell compile errors
-nix build .#web --accept-flake-config -L        # fix web site path if needed
-./scripts/build-apk.sh                          # produces dist/timetrack.apk
-git add -A && git commit -m "..." && git push
-# re-run the Pages workflow after web build is green:
+# 1. Commit and push the fixes:
+git add -A && git commit -m "Fix Miso APIs, Nix eval, Darwin GHC link, and Android host" && git push
+# 2. Produce the APK (bundle is already built; Gradle needs Maven access):
+./scripts/build-apk.sh
+# 3. Deploy Pages (CI builds .#web with Cachix substitutes) and verify:
 gh workflow run pages.yml
+curl -I https://safrixv.github.io/tt/
+# 4. Optional local web verification (heavy: GHCJS builds from source on Darwin):
+nix build .#web --accept-flake-config -L
+ls -lh result/index.html result/styles.css result/all.js
 ```
 
-Hosted URL (once workflow succeeds): https://safrixv.github.io/tt/
+Hosted URL (once the workflow succeeds): https://safrixv.github.io/tt/

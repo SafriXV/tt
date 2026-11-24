@@ -24,24 +24,50 @@
             android_sdk.accept_license = true;
           };
         };
-        ghcNative = miso.lib.${system}.ghcNative;
+        ghcNativeBase = miso.lib.${system}.ghcNative;
+
+        # Keep local build artifacts and logs out of the derivation sources.
+        src = lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type:
+            let name = builtins.baseNameOf path;
+                ignoredDirs = [ ".git" ".build" "dist" "result" "build" ".gradle" ];
+            in ! (type == "directory" &&
+                  (builtins.elem name ignoredDirs || lib.hasPrefix "result-" name))
+               && ! lib.hasSuffix ".log" (builtins.toString path);
+        };
 
         # Browser (GitHub Pages) build of the same Haskell sources. The miso
         # overlay supplies the GHCJS 9.14.1 package set.
-        webPkgs = (import miso.inputs.nixpkgs {
+        webPkgsBase = (import miso.inputs.nixpkgs {
           inherit system;
           overlays = [ miso.overlays.default ];
         }).pkgsCross.ghcjs.haskell.packages.ghc9141;
 
-        withoutProjectFile = lib.cleanSourceWith {
-          src = ./.;
-          filter = path: _type: lib.relativeTo ./. path != "cabal.project";
-        };
+        # Apple's ranlib pads wasm objects with '\n'; GHC 9.14's archive reader
+        # passes that padding to wasm-ld, which fails with "section too large".
+        # Patch the *plain* cross GHC: miso's ghcNative overlay adds jsbi.patch
+        # on top of whatever GHC we pass in, so patching its already-overridden
+        # ghc would apply jsbi.patch twice and break the build.
+        patchedGhc = webPkgsBase.ghc.overrideAttrs (old: {
+          patches = (old.patches or []) ++ [ ./patches/ghc-9.12-js-ar-darwin-ranlib-padding.patch ];
+        });
 
-        webApp = (webPkgs.callCabal2nix "timetrack" withoutProjectFile {
-          miso = webPkgs.miso;
-        }).overrideAttrs (old: {
+        ghcNative = ghcNativeBase.override { ghc = patchedGhc; };
+
+        # The web backend uses GHCJS, which does not read GHC's JS-backend
+        # archives; it needs no Darwin patch (and CI runs on Linux).
+        webPkgs = webPkgsBase;
+
+        # The checked-in cabal.project pins miso as a git
+        # source-repository-package, which conflicts with the package set the
+        # miso overlay supplies. Remove it from both derivation sources.
+        withoutProjectFile = drv: drv.overrideAttrs (old: {
           postPatch = (old.postPatch or "") + "rm -f cabal.project\n";
+        });
+
+        webApp = withoutProjectFile (webPkgs.callCabal2nix "timetrack" (src) {
+          miso = webPkgs.miso;
         });
 
         web = pkgs.runCommand "timetrack-web" { } ''
@@ -53,9 +79,9 @@
 
         # Haskell executable, built with GHC's JavaScript backend against
         # miso's native (LynxJS dual-thread) backend.
-        app = ghcNative.callCabal2nixWithOptions "timetrack" (lib.cleanSource ./.) "-fnative" {
+        app = withoutProjectFile (ghcNative.callCabal2nixWithOptions "timetrack" (src) "-fnative" {
           miso = ghcNative.miso-native;
-        };
+        });
 
         # The Lynx bundle consumed by the Android host app.
         bundle = miso.lib.${system}.mkLynxBundle {

@@ -37,20 +37,24 @@ android {
 }
 
 dependencies {
-    // Lynx runtime. Versions match the Lynx 4.0.0 toolchain used by miso's
-    // native backend and the reference miso Android hosts.
-    implementation "org.lynxsdk.lynx:lynx:4.0.0"
-    implementation "org.lynxsdk.lynx:lynx-jssdk:4.0.0"
-    implementation "org.lynxsdk.lynx:lynx-trace:4.0.0"
+    // Lynx runtime, pinned to the same versions as miso's reference Android host.
+    implementation "org.lynxsdk.lynx:lynx:4.0.3"
+    implementation "org.lynxsdk.lynx:lynx-jssdk:4.0.3"
+    implementation "org.lynxsdk.lynx:lynx-trace:4.0.3"
     implementation "org.lynxsdk.lynx:primjs:4.0.0"
 
     // XElements give us the native <input> used for task descriptions.
-    implementation "org.lynxsdk.lynx:xelement:4.0.0"
+    implementation "org.lynxsdk.lynx:xelement:4.0.3"
+    implementation "org.lynxsdk.lynx:xelement-input:4.0.3"
+    implementation "org.lynxsdk.lynx:xelement-overlay:4.0.3"
+    implementation "org.lynxsdk.lynx:xelement-svg:4.0.3"
+    implementation "org.lynxsdk.lynx:servalsvg:0.0.2"
+    implementation "org.lynxsdk.lynx:xelement-refresh:4.0.3"
 
     // Image / log / http services required by the Lynx environment.
-    implementation "org.lynxsdk.lynx:lynx-service-image:4.0.0"
-    implementation "org.lynxsdk.lynx:lynx-service-log:4.0.0"
-    implementation "org.lynxsdk.lynx:lynx-service-http:4.0.0"
+    implementation "org.lynxsdk.lynx:lynx-service-image:4.0.3"
+    implementation "org.lynxsdk.lynx:lynx-service-log:4.0.3"
+    implementation "org.lynxsdk.lynx:lynx-service-http:4.0.3"
     implementation "com.facebook.fresco:fresco:2.3.0"
     implementation "com.facebook.fresco:animated-gif:2.3.0"
     implementation "com.facebook.fresco:animated-webp:2.3.0"
